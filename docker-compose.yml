@@ -1,0 +1,16 @@
+version: "3.9"
+
+services:
+  db:
+    image: mysql:8
+    container_name: weather_db
+    restart: always
+    command: --local-infile=1
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: weather_sales
+    volumes:
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./database/sales.csv:/var/lib/mysql-files/sales.csv
+    ports:
+      - "3308:3306"
