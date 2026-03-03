@@ -1,303 +1,193 @@
 import mysql.connector
-from flask import Flask, jsonify
+from flask import Flask, jsonify, send_from_directory
 import requests
-from urllib.parse import quote
 from datetime import datetime
+import os
 from flask_cors import CORS
 
-app = Flask(__name__)
-CORS(app)  # Allow cross-origin requests
-
 API_KEY = "b36085dbd254423b05c7ef133ac094cc"
+CITY = "Akron"
 
-
-# --------------------------
-# MySQL connection
-# --------------------------
 DB_CONFIG = {
-    "host": "localhost",
-    "user": "root",
-    "password": "root",
-    "database": "weather_sales",
-    "port": 3308
+    "host": os.getenv("MYSQL_HOST", "localhost"),  # use container network name
+    "user": os.getenv("MYSQL_USER", "root"),
+    "password": os.getenv("MYSQL_PASSWORD", "root"),
+    "database": os.getenv("MYSQL_DB", "weather_sales"),
+    "port": 3306
 }
 
-# --------------------------
-# Route: Home
-# --------------------------
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Absolute path to the 'frontend' directory
+FRONTEND_FOLDER = os.path.join(BASE_DIR, 'frontend')
+
+app = Flask(__name__)
+CORS(app)
+
 @app.route("/")
-def home():
-    return "Weather Sales API Running"
+def root_index():
+    # Look for index.html inside /app/frontend
+    return send_from_directory(FRONTEND_FOLDER, "index.html")
+
+@app.route("/frontend/<path:filename>")
+def serve_static(filename):
+    # Look for main.js or styles.css inside /app/frontend
+    return send_from_directory(FRONTEND_FOLDER, filename)
 
 # --------------------------
-# Route: Test backend
-# --------------------------
-@app.route("/api/test")
-def test():
-    return jsonify({"message": "Backend working!"})
-
-# --------------------------
-# Route: Get sales data
+# 1️⃣ Get Sales Feature Dataset
 # --------------------------
 @app.route("/api/sales")
 def get_sales():
     try:
-        db = mysql.connector.connect(**DB_CONFIG)  # new connection
+        db = mysql.connector.connect(**DB_CONFIG)
         cursor = db.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM sales LIMIT 50")
+
+        cursor.execute("""
+            SELECT *
+            FROM sales_features
+            ORDER BY date
+        """)
+
         rows = cursor.fetchall()
         cursor.close()
-        db.close()  # close after use
+        db.close()
+
         return jsonify(rows)
+
     except mysql.connector.Error as e:
         return jsonify({"error": str(e)}), 500
 
+
 # --------------------------
-# Route: Fetch & insert weather data into DB
+# 2️⃣ Get Current Weather (Live API)
 # --------------------------
-# --------------------------
-# Route: Fetch & insert weather data into DB (Forecast)
-# --------------------------
-@app.route("/api/load_weather/<city>")
-def load_weather(city):
+@app.route("/api/weather/current")
+def get_current_weather():
     try:
-        city_encoded = quote(city)
+        url = f"https://api.openweathermap.org/data/2.5/weather?q={CITY}&units=metric&appid={API_KEY}"
+        response = requests.get(url, timeout=10).json()
 
-        # Fetch 5-day forecast from OpenWeatherMap
-        forecast_url = f"https://api.openweathermap.org/data/2.5/forecast?q={city_encoded}&units=metric&appid={API_KEY}"
-        forecast_resp = requests.get(forecast_url, timeout=10).json()
+        if response.get("cod") != 200:
+            return jsonify({"error": response.get("message")}), 400
 
-        if forecast_resp.get("cod") != "200":
-            return jsonify({"error": forecast_resp.get("message", "Forecast not available")}), 404
+        weather = {
+            "date": datetime.utcnow().strftime("%Y-%m-%d"),
+            "temperature": response["main"]["temp"],
+            "humidity": response["main"]["humidity"],
+            "wind_speed": response["wind"]["speed"],
+            "description": response["weather"][0]["description"]
+        }
 
-        # Aggregate 3-hour forecast into daily summaries
-        daily_forecast = {}
-        for entry in forecast_resp["list"]:
-            date = datetime.utcfromtimestamp(entry["dt"]).strftime("%Y-%m-%d")
-            temp = entry["main"]["temp"]
-            humidity = entry["main"]["humidity"]
-            wind_speed = entry["wind"]["speed"]
-            weather_desc = entry["weather"][0]["description"]
-            rainfall = entry.get("rain", {}).get("3h", 0)  # mm
-
-            if date not in daily_forecast:
-                daily_forecast[date] = {
-                    "temps": [],
-                    "descriptions": [],
-                    "humidity": [],
-                    "rainfall": [],
-                    "wind_speed": []
-                }
-
-            daily_forecast[date]["temps"].append(temp)
-            daily_forecast[date]["descriptions"].append(weather_desc)
-            daily_forecast[date]["humidity"].append(humidity)
-            daily_forecast[date]["rainfall"].append(rainfall)
-            daily_forecast[date]["wind_speed"].append(wind_speed)
-
-        # Insert aggregated data into DB
-        cursor = db.cursor()
-        for date, info in daily_forecast.items():
-            avg_temp = round(sum(info["temps"]) / len(info["temps"]), 2)
-            min_temp = round(min(info["temps"]), 2)
-            max_temp = round(max(info["temps"]), 2)
-            avg_humidity = int(sum(info["humidity"]) / len(info["humidity"]))
-            avg_wind_speed = round(sum(info["wind_speed"]) / len(info["wind_speed"]), 2)
-            total_rainfall = round(sum(info["rainfall"]), 2)
-            desc = max(set(info["descriptions"]), key=info["descriptions"].count)
-
-            insert_query = """
-                INSERT INTO weather_data 
-                    (city, date, avg_temp, min_temp, max_temp, description, rainfall, humidity, wind_speed, forecast_type)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON DUPLICATE KEY UPDATE
-                    avg_temp=VALUES(avg_temp),
-                    min_temp=VALUES(min_temp),
-                    max_temp=VALUES(max_temp),
-                    description=VALUES(description),
-                    rainfall=VALUES(rainfall),
-                    humidity=VALUES(humidity),
-                    wind_speed=VALUES(wind_speed)
-            """
-            cursor.execute(insert_query, (
-                forecast_resp["city"]["name"],
-                date,
-                avg_temp,
-                min_temp,
-                max_temp,
-                desc,
-                total_rainfall,
-                avg_humidity,
-                avg_wind_speed,
-                'forecast'   # this marks it as future forecast
-            ))
-
-        db.commit()
-        cursor.close()
-        return jsonify({"message": f"Forecast weather data for {city} loaded successfully!"})
-
-    except requests.exceptions.RequestException as e:
-        return jsonify({"error": "Failed to reach OpenWeather API", "details": str(e)}), 500
+        return jsonify(weather)
 
     except Exception as e:
-        return jsonify({"error": "Unexpected error", "details": str(e)}), 500
+        return jsonify({"error": str(e)}), 500
+
 
 # --------------------------
-# Route: Combined sales + weather data
+# 3️⃣ Combined Sales + Weather (For Training / Analysis)
 # --------------------------
-@app.route("/api/combined/<city>")
-def combined_data(city):
+@app.route("/api/combined")
+def combined():
     try:
         db = mysql.connector.connect(**DB_CONFIG)
         cursor = db.cursor(dictionary=True)
 
         query = """
             SELECT 
-                s.sale_date,
-                SUM(s.total) as total_sales,
+                s.*,
                 w.avg_temp,
-                w.description,
+                w.min_temp,
+                w.max_temp,
                 w.humidity,
-                w.rainfall
-            FROM sales s
+                w.rainfall,
+                w.wind_speed,
+                w.description,
+                w.forecast_type
+            FROM sales_features s
             LEFT JOIN weather_data w
-                ON s.sale_date = w.date AND w.city = %s
-            GROUP BY s.sale_date, w.avg_temp, w.description, w.humidity, w.rainfall
-            ORDER BY s.sale_date
+                ON s.date = w.date
+                AND w.city = %s
+            ORDER BY s.date
         """
 
-        cursor.execute(query, (city,))
-        data = cursor.fetchall()
+        cursor.execute(query, (CITY,))
+        rows = cursor.fetchall()
+
         cursor.close()
         db.close()
-        return jsonify(data)
-    
+
+        return jsonify(rows)
+
     except mysql.connector.Error as e:
         return jsonify({"error": str(e)}), 500
-    
-# --------------------------
-# Route: Load forecast for all cities
-# --------------------------
-@app.route("/api/load_weather_forecast_all")
-def load_weather_forecast_all():
+
+@app.route("/api/simple_prediction")
+def simple_prediction():
     try:
-        cursor = db.cursor()
-        cursor.execute("SELECT DISTINCT city FROM sales")
-        cities = [row[0] for row in cursor.fetchall()]
+        db = mysql.connector.connect(**DB_CONFIG)
+        cursor = db.cursor(dictionary=True)
 
-        for city in cities:
-            city_encoded = quote(city)
-            forecast_url = f"https://api.openweathermap.org/data/2.5/forecast?q={city_encoded}&units=metric&appid={API_KEY}"
-            forecast_resp = requests.get(forecast_url, timeout=10).json()
-
-            if forecast_resp.get("cod") != "200":
-                print(f"Skipping {city}: {forecast_resp.get('message', 'Forecast not available')}")
-                continue
-
-            daily_forecast = {}
-            for entry in forecast_resp["list"]:
-                date = datetime.utcfromtimestamp(entry["dt"]).strftime("%Y-%m-%d")
-                temp = entry["main"]["temp"]
-                humidity = entry["main"]["humidity"]
-                wind_speed = entry["wind"]["speed"]
-                desc = entry["weather"][0]["description"]
-                rainfall = entry.get("rain", {}).get("3h", 0)
-
-                if date not in daily_forecast:
-                    daily_forecast[date] = {"temps": [], "descriptions": [], "humidity": [], "rainfall": [], "wind_speed": []}
-
-                daily_forecast[date]["temps"].append(temp)
-                daily_forecast[date]["descriptions"].append(desc)
-                daily_forecast[date]["humidity"].append(humidity)
-                daily_forecast[date]["rainfall"].append(rainfall)
-                daily_forecast[date]["wind_speed"].append(wind_speed)
-
-            # Insert into DB
-            for date, info in daily_forecast.items():
-                avg_temp = round(sum(info["temps"]) / len(info["temps"]), 2)
-                min_temp = round(min(info["temps"]), 2)
-                max_temp = round(max(info["temps"]), 2)
-                avg_humidity = int(sum(info["humidity"]) / len(info["humidity"]))
-                avg_wind_speed = round(sum(info["wind_speed"]) / len(info["wind_speed"]), 2)
-                total_rainfall = round(sum(info["rainfall"]), 2)
-                desc = max(set(info["descriptions"]), key=info["descriptions"].count)
-
-                insert_query = """
-                    INSERT INTO weather_data 
-                        (city, date, avg_temp, min_temp, max_temp, description, rainfall, humidity, wind_speed, forecast_type)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON DUPLICATE KEY UPDATE
-                        avg_temp=VALUES(avg_temp),
-                        min_temp=VALUES(min_temp),
-                        max_temp=VALUES(max_temp),
-                        description=VALUES(description),
-                        rainfall=VALUES(rainfall),
-                        humidity=VALUES(humidity),
-                        wind_speed=VALUES(wind_speed)
-                """
-                cursor.execute(insert_query, (city, date, avg_temp, min_temp, max_temp, desc, total_rainfall, avg_humidity, avg_wind_speed, 'forecast'))
-
-            print(f"Forecast loaded for {city}")
-
-        db.commit()
+        # Latest sales row
+        cursor.execute("SELECT * FROM sales_features ORDER BY date DESC LIMIT 1")
+        latest = cursor.fetchone()
         cursor.close()
-        return jsonify({"message": "Forecast weather data loaded for all cities!"})
+        db.close()
+
+        # Use latest avg_temp (dummy logic)
+        predicted_sales = int(latest['total_quantity'] * 1.05)  # +5% as example
+
+        return jsonify({
+            "latest_date": latest['date'],
+            "latest_total_quantity": latest['total_quantity'],
+            "predicted_next_sales": predicted_sales
+        })
 
     except Exception as e:
-        return jsonify({"error": "Failed to load forecast weather for all cities", "details": str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 # --------------------------
-# Route: Load historical weather for all sales dates
+# 4️⃣ Prediction Input (Latest Row + Live Weather)
 # --------------------------
-@app.route("/api/load_weather_historical_all")
-def load_weather_historical_all():
+@app.route("/api/prediction_input")
+def prediction_input():
     try:
-        db = mysql.connector.connect(**DB_CONFIG)  # <-- create DB connection
-        cursor = db.cursor()
-        cursor.execute("SELECT DISTINCT city FROM sales")
-        cities = [row[0] for row in cursor.fetchall()]
+        db = mysql.connector.connect(**DB_CONFIG)
+        cursor = db.cursor(dictionary=True)
 
-        for city in cities:
-            cursor.execute("SELECT DISTINCT sale_date FROM sales WHERE city=%s", (city,))
-            dates = [row[0] for row in cursor.fetchall()]
+        cursor.execute("""
+            SELECT *
+            FROM sales_features
+            ORDER BY date DESC
+            LIMIT 1
+        """)
 
-            for date in dates:
-                # Dummy example weather data
-                avg_temp = 25.0
-                min_temp = 22.0
-                max_temp = 28.0
-                humidity = 60
-                wind_speed = 3.5
-                rainfall = 0
-                desc = "clear"
+        latest_row = cursor.fetchone()
 
-                insert_query = """
-                    INSERT INTO weather_data
-                        (city, date, avg_temp, min_temp, max_temp, description, rainfall, humidity, wind_speed, forecast_type)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON DUPLICATE KEY UPDATE
-                        avg_temp=VALUES(avg_temp),
-                        min_temp=VALUES(min_temp),
-                        max_temp=VALUES(max_temp),
-                        description=VALUES(description),
-                        rainfall=VALUES(rainfall),
-                        humidity=VALUES(humidity),
-                        wind_speed=VALUES(wind_speed)
-                """
-                cursor.execute(insert_query, (city, date, avg_temp, min_temp, max_temp, desc, rainfall, humidity, wind_speed, 'historical'))
-
-            print(f"Historical weather loaded for {city}")
-
-        db.commit()
         cursor.close()
-        db.close()  # <-- close the connection
-        return jsonify({"message": "Historical weather data loaded for all sales cities!"})
+        db.close()
+
+        # Fetch live weather
+        url = f"https://api.openweathermap.org/data/2.5/weather?q={CITY}&units=metric&appid={API_KEY}"
+        response = requests.get(url, timeout=10).json()
+
+        weather = {
+            "temperature": response["main"]["temp"],
+            "humidity": response["main"]["humidity"],
+            "wind_speed": response["wind"]["speed"]
+        }
+
+        return jsonify({
+            "latest_sales_features": latest_row,
+            "current_weather": weather
+        })
 
     except Exception as e:
-        return jsonify({"error": "Failed to load historical weather", "details": str(e)}), 500
-    
+        return jsonify({"error": str(e)}), 500
+
+
 # --------------------------
-# Run Flask app
+# Run App
 # --------------------------
 if __name__ == "__main__":
-    app.run(debug=True, port=5050)
+    app.run(debug=True, host="0.0.0.0", port=5050)

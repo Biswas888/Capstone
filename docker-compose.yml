@@ -1,16 +1,33 @@
-version: "3.9"
-
 services:
-  db:
-    image: mysql:8
+  mysql-db:
+    image: mysql:8.0
     container_name: weather_db
     restart: always
-    command: --local-infile=1
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: weather_sales
-    volumes:
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
-      - ./database/sales.csv:/var/lib/mysql-files/sales.csv
     ports:
       - "3308:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  flask-api:
+    build: .
+    container_name: flask-api
+    restart: always
+    ports:
+      - "5050:5050"
+    depends_on:
+      - mysql-db
+    environment:
+      MYSQL_HOST: mysql-db
+      MYSQL_USER: root
+      MYSQL_PASSWORD: root
+      MYSQL_DB: weather_sales
+    volumes:
+      - ./backend:/app/backend
+      - ./raw:/app/raw   # 👈 ADD THIS LINE
+
+volumes:
+  mysql-data:
