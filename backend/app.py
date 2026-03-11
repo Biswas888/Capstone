@@ -75,7 +75,7 @@ def combined():
         db = mysql.connector.connect(**DB_CONFIG)
         cursor = db.cursor(dictionary=True)
         query = """
-            SELECT s.*, w.avg_temp, w.humidity, w.description
+            SELECT s.*, w.avg_temp, w.humidity, w.rainfall, w.wind_speed, w.forecast_type, w.description
             FROM sales_features s
             LEFT JOIN weather_data w ON s.date = w.date
             ORDER BY s.date DESC

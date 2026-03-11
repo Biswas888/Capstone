@@ -127,6 +127,7 @@ start_date = max(str(start_date), min_allowed)
 end_date = min(str(end_date_raw), max_allowed) 
 print(f"Fetching historical weather from {start_date} to {end_date}")
 historical_weather = fetch_historical_weather(start_date, end_date)
+historical_weather['forecast_type'] = 'historical'  
 
 if not historical_weather.empty:
     # --- FILL MISSING VALUES & ADD HUMIDITY ---
@@ -145,14 +146,25 @@ if not historical_weather.empty:
     cursor = db.cursor()
     for _, row in historical_weather.iterrows():
         cursor.execute("""
-            INSERT INTO weather_data (date, avg_temp, rainfall, wind_speed, humidity)
-            VALUES (%s, %s, %s, %s, %s)
+            INSERT INTO weather_data 
+                (date, avg_temp, rainfall, wind_speed, humidity, forecast_type, description)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE
                 avg_temp=VALUES(avg_temp),
                 rainfall=VALUES(rainfall),
                 wind_speed=VALUES(wind_speed),
-                humidity=VALUES(humidity)
-        """, (row['date'], row['avg_temp'], row['rainfall'], row['wind_speed'], row['humidity']))
+                humidity=VALUES(humidity),
+                forecast_type=VALUES(forecast_type),
+                description=VALUES(description)
+        """, (
+            row['date'],
+            row['avg_temp'],
+            row['rainfall'],
+            row['wind_speed'],
+            row['humidity'],
+            row.get('forecast_type', 'historical'),
+            row.get('description', None)
+        ))
     db.commit()
     cursor.close()
     db.close()
@@ -242,14 +254,64 @@ else:
 # ---------------------------
 # Combine sales + historical + forecast into final CSV
 # ---------------------------
-# Start with sales_df
-df = sales_df.copy()
-if not historical_weather.empty:
-    df = df.merge(historical_weather, left_on='date', right_on='date', how='left')
 
-# Append forecast
+# Start with sales dataframe
+sales_columns = [
+    'date', 'total_quantity', 'total_revenue', 'Baby', 'Baking/ Spices/ Condiments',
+    'Beverages', 'Cleaning', 'Dairy', 'Food', 'Fruits', 'Hygiene', 'Meat',
+    'Miscellaneous', 'Pet', 'School Supplies', 'Snacks', 'Vegetables',
+    'day_of_week', 'month', 'is_weekend', 'lag_1', 'lag_3', 'lag_7', 'rolling_3', 'rolling_7'
+]
+df = sales_df[sales_columns].copy()
+
+# Merge historical weather (adds avg_temp, rainfall, wind_speed, humidity, forecast_type)
+if not historical_weather.empty:
+    df = df.merge(
+        historical_weather[['date', 'avg_temp', 'rainfall', 'wind_speed', 'humidity', 'forecast_type']],
+        on='date',
+        how='left'
+    )
+
+# Merge forecast weather (future rows) if available
 if not df_forecast_combined.empty:
+    # Ensure forecast rows have forecast_type = 'forecast'
+    if 'forecast_type' not in df_forecast_combined.columns:
+        df_forecast_combined['forecast_type'] = 'forecast'
+    
     df = pd.concat([df, df_forecast_combined], ignore_index=True, sort=False)
 
+# Optional: fill any remaining NaNs for ML (e.g., future lag/rolling features)
+df.fillna({
+    'total_quantity': 0,
+    'total_revenue': 0,
+    'Baby': 0,
+    'Baking/ Spices/ Condiments': 0,
+    'Beverages': 0,
+    'Cleaning': 0,
+    'Dairy': 0,
+    'Food': 0,
+    'Fruits': 0,
+    'Hygiene': 0,
+    'Meat': 0,
+    'Miscellaneous': 0,
+    'Pet': 0,
+    'School Supplies': 0,
+    'Snacks': 0,
+    'Vegetables': 0,
+    'day_of_week': 0,
+    'month': 0,
+    'is_weekend': 0,
+    'lag_1': 0,
+    'lag_3': 0,
+    'lag_7': 0,
+    'rolling_3': 0,
+    'rolling_7': 0,
+    'avg_temp': 0,
+    'rainfall': 0,
+    'wind_speed': 0,
+    'humidity': 0
+}, inplace=True)
+
+# Save final forecast-ready dataset
 df.to_csv("backend/forecast_ready_dataset.csv", index=False)
 print("Forecast-ready dataset saved at 'backend/forecast_ready_dataset.csv'.")
