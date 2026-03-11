@@ -27,9 +27,7 @@ CREATE TABLE sales_features (
     `School Supplies` INT DEFAULT 0,
     Snacks INT DEFAULT 0,
     Vegetables INT DEFAULT 0,
-
-ALTER TABLE sales_features
-ADD COLUMN city VARCHAR(50) DEFAULT 'Akron';
+    city VARCHAR(50) DEFAULT 'Akron',
 
     -- Calendar Features
     day_of_week INT,
@@ -49,7 +47,6 @@ ADD COLUMN city VARCHAR(50) DEFAULT 'Akron';
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
---Create weather table
 CREATE TABLE weather_data (
     date DATE PRIMARY KEY,
 
@@ -68,6 +65,6 @@ CREATE TABLE weather_data (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
---Add indexes
+-- Add indexes
 CREATE INDEX idx_sales_date ON sales_features(date);
 CREATE INDEX idx_weather_date ON weather_data(date);
