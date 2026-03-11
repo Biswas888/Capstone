@@ -4,37 +4,38 @@ import requests
 import os
 from urllib.parse import quote
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import date
+from datetime import datetime, timedelta
 
-load_dotenv()
+load_dotenv()  # load .env
 
 # ---------------------------
 # MySQL connection
 # ---------------------------
 DB_CONFIG = {
-    "host": os.getenv("MYSQL_HOST", "mysql-db"),  # container hostname
+    "host": os.getenv("MYSQL_HOST", "mysql-db"),
     "user": os.getenv("MYSQL_USER", "root"),
     "password": os.getenv("MYSQL_PASSWORD", "root"),
     "database": os.getenv("MYSQL_DB", "weather_sales"),
     "port": 3306
 }
 
-API_KEY = os.getenv("API_KEY")
-CITY = "Akron"  
+API_KEY = os.getenv("API_KEY")  # OpenWeatherMap
+CITY = "Akron"
+LATITUDE = 41.0814
+LONGITUDE = -81.5190
 
 # ---------------------------
 # Load historical sales
 # ---------------------------
-sales_csv_path = "backend/forecast_ready_dataset.csv"  # adjust path for container
-
+sales_csv_path = "backend/forecast_ready_dataset.csv"
 if os.path.exists(sales_csv_path):
     sales_df = pd.read_csv(sales_csv_path)
     print(f"Loaded sales CSV: {sales_csv_path}")
 else:
-    # CSV not found → generate dummy sales data for demo
     print(f"{sales_csv_path} not found. Generating dummy sales data.")
     sales_df = pd.DataFrame({
-        "date": pd.date_range("2023-01-01", "2023-01-10"),  # adjust range as needed
+        "date": pd.date_range("2023-01-01", "2023-01-10"),
         "total_quantity": [0]*10,
         "total_revenue": [0]*10
     })
@@ -60,56 +61,107 @@ print("Historical sales loaded into MySQL.")
 # ---------------------------
 # Fetch historical weather from Open-Meteo
 # ---------------------------
-def fetch_historical_weather(start_date, end_date, latitude=41.0814, longitude=-81.5190):
-    url = f"https://archive-api.open-meteo.com/v1/era5?latitude={latitude}&longitude={longitude}&start_date={start_date}&end_date={end_date}&hourly=temperature_2m,humidity_2m,rain,wind_speed_10m"
+def fetch_historical_weather(start_date, end_date, lat=LATITUDE, lon=LONGITUDE):
+    """
+    Fetch hourly historical weather from Open-Meteo ERA5 API and aggregate to daily values.
+    Returns a DataFrame with columns: date, avg_temp, rainfall, wind_speed
+    """
+    url = (
+        f"https://archive-api.open-meteo.com/v1/era5?"
+        f"latitude={lat}&longitude={lon}"
+        f"&start_date={start_date}&end_date={end_date}"
+        f"&hourly=temperature_2m,wind_speed_10m,rain,relativehumidity_2m"
+    )
+    
     resp = requests.get(url, timeout=10).json()
     
     if 'hourly' not in resp:
-        print(f"No historical weather data returned from Open-Meteo. Response:\n{resp}")
-        return pd.DataFrame()  # return empty dataframe
-
-    # process hourly data...
+        print(f"No historical weather data returned. Response:\n{resp}")
+        return pd.DataFrame()  # empty DF to avoid crashing
+    
+    hourly = resp['hourly']
+    
+    # Ensure rainfall exists
+    rainfall = hourly.get('rain', [0]*len(hourly['time']))
+    humidity = hourly.get('relativehumidity_2m', [0]*len(hourly['time']))
+    
     df = pd.DataFrame({
-        "date": pd.to_datetime(resp['hourly']['time']).date,
-        "avg_temp": resp['hourly']['temperature_2m'],
-        "humidity": resp['hourly']['humidity_2m'],
-        "rainfall": resp['hourly'].get('rain', [0]*len(resp['hourly']['time'])),
-        "wind_speed": resp['hourly']['wind_speed_10m']
+        'datetime': pd.to_datetime(hourly['time']),
+        'temperature': hourly['temperature_2m'],
+        'rainfall': rainfall,
+        'wind_speed': hourly['wind_speed_10m'],
+        'humidity': humidity
     })
     
-    # aggregate to daily
-    df['date'] = pd.to_datetime(df['date'])
-    daily_df = df.groupby('date').agg({
-        'avg_temp': 'mean',
-        'humidity': 'mean',
-        'rainfall': 'sum',
-        'wind_speed': 'mean'
+    df['date'] = df['datetime'].dt.date
+
+    # Aggregate hourly → daily for ML
+    daily = df.groupby('date').agg({
+        'temperature': 'mean',    
+        'rainfall': 'sum',        
+        'wind_speed': 'mean',  
+        'humidity': 'mean'        
     }).reset_index()
     
-    return daily_df
+    # Rename to match your DB schema
+    daily.rename(columns={'temperature': 'avg_temp'}, inplace=True)
+    
+    # Optional: round floats for readability
+    daily[['avg_temp','rainfall','wind_speed','humidity']] = daily[['avg_temp','rainfall','wind_speed','humidity']].round(2)
+    
+    # Add forecast_type for clarity
+    daily['forecast_type'] = 'historical'
+    
+    return daily
 
-# Determine date range from sales data
+# Determine historical date range from sales
 start_date = sales_df['date'].min()
-end_date = sales_df['date'].max()
-weather_df = fetch_historical_weather(start_date, end_date)
+end_date_raw = sales_df['date'].max()
 
-# Load weather into MySQL
-db = mysql.connector.connect(**DB_CONFIG)
-cursor = db.cursor()
-for _, row in weather_df.iterrows():
-    cursor.execute("""
-        INSERT INTO weather_data (date, avg_temp, min_temp, max_temp, humidity, rainfall, wind_speed, description)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
-        ON DUPLICATE KEY UPDATE avg_temp=VALUES(avg_temp), humidity=VALUES(humidity)
-    """, (row['date'], row['avg_temp'], row['min_temp'], row['max_temp'],
-          row['humidity'], row['rainfall'], row['wind_speed'], row['description']))
-db.commit()
-cursor.close()
-db.close()
-print("Historical weather loaded from Open-Meteo.")
+# Clamp to Open-Meteo allowed range
+min_allowed = "1940-01-01"
+max_allowed = date.today().isoformat() 
+
+# Ensure dates are within allowed range
+start_date = max(str(start_date), min_allowed)  
+end_date = min(str(end_date_raw), max_allowed) 
+print(f"Fetching historical weather from {start_date} to {end_date}")
+historical_weather = fetch_historical_weather(start_date, end_date)
+
+if not historical_weather.empty:
+    # --- FILL MISSING VALUES & ADD HUMIDITY ---
+    historical_weather['avg_temp'] = historical_weather['avg_temp'].fillna(0)
+    historical_weather['rainfall'] = historical_weather['rainfall'].fillna(0)
+    historical_weather['wind_speed'] = historical_weather['wind_speed'].fillna(0)
+    
+    # fill NaNs with a default
+    if 'humidity' not in historical_weather.columns:
+        historical_weather['humidity'] = 50
+    else:
+        historical_weather['humidity'] = historical_weather['humidity'].fillna(50).astype(int)
+
+    # --- INSERT INTO MYSQL ---
+    db = mysql.connector.connect(**DB_CONFIG)
+    cursor = db.cursor()
+    for _, row in historical_weather.iterrows():
+        cursor.execute("""
+            INSERT INTO weather_data (date, avg_temp, rainfall, wind_speed, humidity)
+            VALUES (%s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+                avg_temp=VALUES(avg_temp),
+                rainfall=VALUES(rainfall),
+                wind_speed=VALUES(wind_speed),
+                humidity=VALUES(humidity)
+        """, (row['date'], row['avg_temp'], row['rainfall'], row['wind_speed'], row['humidity']))
+    db.commit()
+    cursor.close()
+    db.close()
+    print("Historical weather loaded from Open-Meteo.")
+else:
+    print("No historical weather data to load.")
 
 # ---------------------------
-# Fetch forecast weather (OpenWeatherMap)
+# Fetch forecast weather from OpenWeatherMap
 # ---------------------------
 def fetch_forecast_weather(city, api_key):
     city_encoded = quote(city)
@@ -132,77 +184,72 @@ def fetch_forecast_weather(city, api_key):
         description = entry["weather"][0]["description"]
         
         if date not in daily_forecast:
-            daily_forecast[date] = {"avg_temp":[], "min_temp":[], "max_temp":[],
-                                    "humidity":[], "wind_speed":[], "rainfall":[], "description":[]}
-        daily_forecast[date]["avg_temp"].append(temp)
-        daily_forecast[date]["min_temp"].append(min_temp)
-        daily_forecast[date]["max_temp"].append(max_temp)
+            daily_forecast[date] = {"temps": [], "humidity": [], "wind_speed": [], "rainfall": [], "description": []}
+        daily_forecast[date]["temps"].append(temp)
         daily_forecast[date]["humidity"].append(humidity)
         daily_forecast[date]["wind_speed"].append(wind_speed)
         daily_forecast[date]["rainfall"].append(rainfall)
         daily_forecast[date]["description"].append(description)
     
-    rows = []
-    for date, values in daily_forecast.items():
-        rows.append({
+    forecast_rows = []
+    for date, vals in daily_forecast.items():
+        forecast_rows.append({
             "date": date,
-            "avg_temp": round(sum(values["avg_temp"])/len(values["avg_temp"]),2),
-            "min_temp": round(min(values["min_temp"]),2),
-            "max_temp": round(max(values["max_temp"]),2),
-            "humidity": int(sum(values["humidity"])/len(values["humidity"])),
-            "wind_speed": round(sum(values["wind_speed"])/len(values["wind_speed"]),2),
-            "rainfall": round(sum(values["rainfall"]),2),
-            "description": max(set(values["description"]), key=values["description"].count),
-            "forecast_type":"forecast"
+            "avg_temp": round(sum(vals["temps"])/len(vals["temps"]), 2),
+            "humidity": int(sum(vals["humidity"])/len(vals["humidity"])),
+            "wind_speed": round(sum(vals["wind_speed"])/len(vals["wind_speed"]), 2),
+            "rainfall": round(sum(vals["rainfall"]), 2),
+            "description": max(set(vals["description"]), key=vals["description"].count),
+            "forecast_type": "forecast"
         })
-    return pd.DataFrame(rows)
+    return pd.DataFrame(forecast_rows)
 
-# ---------------------------
-# Combine historical sales + weather
-# ---------------------------
-db = mysql.connector.connect(**DB_CONFIG)
-cursor = db.cursor(dictionary=True)
-query = """
-SELECT s.*, w.avg_temp, w.min_temp, w.max_temp, w.humidity, w.rainfall, w.wind_speed, w.description, w.forecast_type
-FROM sales_features s
-LEFT JOIN weather_data w ON s.date = w.date
-ORDER BY s.date
-"""
-cursor.execute(query)
-data = cursor.fetchall()
-cursor.close()
-db.close()
-
-df = pd.DataFrame(data)
-
-# Forward-fill missing weather
-for col in ['avg_temp','humidity','wind_speed','rainfall']:
-    if col in df.columns:
-        df[col] = df[col].ffill()
-
-# ---------------------------
-# Append forecast
-# ---------------------------
 forecast_df = fetch_forecast_weather(CITY, API_KEY)
 if not forecast_df.empty:
-    forecast_features = pd.DataFrame({
+    # Add empty sales features for forecast dates
+    forecast_df_features = pd.DataFrame({
         "date": forecast_df["date"],
-        "total_quantity": None, "total_revenue": None,
-        "Baby": 0, "Baking/ Spices/ Condiments": 0, "Beverages":0,
-        "Cleaning":0, "Dairy":0, "Food":0, "Fruits":0, "Hygiene":0,
-        "Meat":0, "Miscellaneous":0, "Pet":0, "School Supplies":0,
-        "Snacks":0, "Vegetables":0,
+        "total_quantity": 0,
+        "total_revenue": 0,
+        "Baby": 0,
+        "Baking/ Spices/ Condiments": 0,
+        "Beverages": 0,
+        "Cleaning": 0,
+        "Dairy": 0,
+        "Food": 0,
+        "Fruits": 0,
+        "Hygiene": 0,
+        "Meat": 0,
+        "Miscellaneous": 0,
+        "Pet": 0,
+        "School Supplies": 0,
+        "Snacks": 0,
+        "Vegetables": 0,
         "day_of_week": pd.to_datetime(forecast_df["date"]).dt.dayofweek,
         "month": pd.to_datetime(forecast_df["date"]).dt.month,
         "is_weekend": pd.to_datetime(forecast_df["date"]).dt.dayofweek.isin([5,6]).astype(int),
-        "lag_1": None, "lag_3": None, "lag_7": None,
-        "rolling_3": None, "rolling_7": None
+        "lag_1": 0,
+        "lag_3": 0,
+        "lag_7": 0,
+        "rolling_3": 0,
+        "rolling_7": 0
     })
-    df_forecast_combined = pd.merge(forecast_features, forecast_df, on="date", how="left")
-    df = pd.concat([df, df_forecast_combined], ignore_index=True, sort=False)
+    
+    df_forecast_combined = pd.merge(forecast_df_features, forecast_df, on="date", how="left")
+else:
+    df_forecast_combined = pd.DataFrame()
 
 # ---------------------------
-# Save final forecast-ready dataset
+# Combine sales + historical + forecast into final CSV
 # ---------------------------
-df.to_csv("forecast_ready_dataset.csv", index=False)
-print("Forecast-ready dataset saved.")
+# Start with sales_df
+df = sales_df.copy()
+if not historical_weather.empty:
+    df = df.merge(historical_weather, left_on='date', right_on='date', how='left')
+
+# Append forecast
+if not df_forecast_combined.empty:
+    df = pd.concat([df, df_forecast_combined], ignore_index=True, sort=False)
+
+df.to_csv("backend/forecast_ready_dataset.csv", index=False)
+print("Forecast-ready dataset saved at 'backend/forecast_ready_dataset.csv'.")
