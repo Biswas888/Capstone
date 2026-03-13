@@ -1,18 +1,30 @@
 document.addEventListener("DOMContentLoaded", () => {
+    // Navigation Logic
+    const sections = {
+        home: document.getElementById('home-section'),
+        data: document.getElementById('data-section'),
+        predict: document.getElementById('predict-section')
+    };
+
+    function showSection(id) {
+        Object.values(sections).forEach(s => s.classList.add('hidden'));
+        sections[id].classList.remove('hidden');
+    }
+
+    document.getElementById('nav-home').addEventListener('click', (e) => { e.preventDefault(); showSection('home'); });
+    document.getElementById('nav-data').addEventListener('click', (e) => { e.preventDefault(); showSection('data'); });
+    document.getElementById('nav-predict').addEventListener('click', (e) => { e.preventDefault(); showSection('predict'); });
+
     const fetchBtn = document.getElementById("fetchBtn");
     const combinedDiv = document.getElementById("combinedData");
-    const predictionDiv = document.getElementById("prediction");
-
-    console.log("Frontend JS loaded. Ready to fetch data from Flask.");
+    const predictionResultsDiv = document.getElementById("predictionResults");
 
     fetchBtn.addEventListener("click", () => {
-        console.log("Fetch button clicked. Requesting data...");
-        
-        // Show a loading message
+        // Show loading states
         combinedDiv.innerHTML = "<p>Loading data from database...</p>";
-        predictionDiv.innerHTML = "<p>Calculating prediction...</p>";
+        predictionResultsDiv.innerHTML = "<p>Calculating 7-day forecast...</p>";
 
-        // 1️⃣ Combined Sales + Weather Data
+        // --- 1. YOUR ORIGINAL COMBINED DATA LOGIC ---
         fetch("/api/combined")
             .then(res => {
                 if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
@@ -23,7 +35,6 @@ document.addEventListener("DOMContentLoaded", () => {
                     combinedDiv.innerHTML = `<p style="color: red;">Error: ${data.error}</p>`;
                     return;
                 }
-
                 if (!data || data.length === 0) {
                     combinedDiv.innerHTML = "<p>No data found in the database.</p>";
                     return;
@@ -51,16 +62,17 @@ document.addEventListener("DOMContentLoaded", () => {
                                 <td>${row.forecast_type ?? "-"}</td>
                              </tr>`;
                 });
-
                 html += "</table>";
                 combinedDiv.innerHTML = html;
+                
+                // Automatically show the data section after fetching
+                showSection('data');
             })
             .catch(err => {
                 combinedDiv.innerHTML = `<p style="color: red;">Failed to connect to API: ${err.message}</p>`;
-                console.error("Combined API Error:", err);
             });
 
-        // 2️⃣ Sales Prediction Logic
+        // --- 2. NEW 7-DAY PREDICTION LOGIC ---
         fetch("/api/prediction_input")
             .then(res => {
                 if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
@@ -68,32 +80,41 @@ document.addEventListener("DOMContentLoaded", () => {
             })
             .then(data => {
                 if (data.error) {
-                    predictionDiv.innerHTML = `<p style="color: red;">Error: ${data.error}</p>`;
+                    predictionResultsDiv.innerHTML = `<p style="color: red;">Error: ${data.error}</p>`;
                     return;
                 }
 
                 const latestSales = data.latest_sales_features;
                 const weather = data.current_weather;
-                
-                // Demo logic: If it's hot (>25C), boost predicted sales by 20%
-                let predictedNextSales = latestSales.total_quantity;
-                if (weather.temperature > 25) {
-                    predictedNextSales = Math.round(predictedNextSales * 1.2);
-                }
+                let forecastHtml = "";
 
-                predictionDiv.innerHTML = `
-                    <div style="border: 1px solid #ccc; padding: 15px; border-radius: 5px; background-color: #f9f9f9;">
-                        <p><strong>Latest Sales Date:</strong> ${latestSales.date}</p>
-                        <p><strong>Actual Last Quantity:</strong> ${latestSales.total_quantity}</p>
-                        <hr>
-                        <p><strong>Current Weather Context:</strong> ${weather.temperature}°C, ${weather.humidity}% Humidity</p>
-                        <p style="font-size: 1.2em; color: #2c3e50;"><strong>Predicted Next Sales:</strong> ${predictedNextSales} units</p>
-                    </div>
-                `;
+                // Generate 7 days of predictions
+                for (let i = 1; i <= 7; i++) {
+                    // Logic: Base quantity from last known day + slight random variation for demo
+                    let predictedQty = latestSales.total_quantity;
+                    
+                    // Apply your weather boost logic (>25C)
+                    // We simulate temperature changing slightly over the week
+                    let simulatedTemp = weather.temperature + (i * 0.5); 
+                    
+                    if (simulatedTemp > 25) {
+                        predictedQty = Math.round(predictedQty * 1.2);
+                    }
+
+                    forecastHtml += `
+                        <div class="forecast-card">
+                            <h3>Day +${i}</h3>
+                            <p class="prediction-value"><strong>${predictedQty}</strong> Units</p>
+                            <hr>
+                            <small>Temp: ${simulatedTemp.toFixed(1)}°C</small><br>
+                            <small>Hum: ${weather.humidity}%</small>
+                        </div>
+                    `;
+                }
+                predictionResultsDiv.innerHTML = forecastHtml;
             })
             .catch(err => {
-                predictionDiv.innerHTML = `<p style="color: red;">Failed to connect to Prediction API</p>`;
-                console.error("Prediction API Error:", err);
+                predictionResultsDiv.innerHTML = `<p style="color: red;">Failed to connect to Prediction API</p>`;
             });
     });
 });

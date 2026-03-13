@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visual Analytics | SalesForecast Pro</title>
+    <link rel="stylesheet" href="style.css">
+    <script defer src="http://localhost:3000/app/embed.js"></script>
+</head>
+<body class="dashboard-page">
+
+    <nav class="navbar">
+        <div class="nav-logo">SalesForecast Pro</div>
+        <ul class="nav-links">
+            <li><a href="index.html">Home</a></li>
+            <li><a href="dashboard.html" class="active">Visual Analytics</a></li>
+        </ul>
+    </nav>
+
+    <main class="dashboard-wrapper">
+        <div id="dashboard-container">
+            </div>
+    </main>
+
+    <script>
+        function defineMetabaseConfig(config) {
+            window.metabaseConfig = config;
+        }
+
+        defineMetabaseConfig({
+            "theme": { "preset": "light" },
+            "isGuest": true,
+            "instanceUrl": "http://localhost:3000"
+        });
+
+        async function renderDashboard() {
+            try {
+                const response = await fetch('http://localhost:5050/api/get-metabase-token');
+                const data = await response.json();
+
+                const dashboard = document.createElement('metabase-dashboard');
+                dashboard.setAttribute('token', data.token);
+                
+                // CRITICAL: Disable internal title to save vertical space
+                dashboard.setAttribute('with-title', 'false'); 
+                dashboard.setAttribute('with-downloads', 'true');
+
+                const container = document.getElementById('dashboard-container');
+                container.innerHTML = ''; 
+                container.appendChild(dashboard);
+
+            } catch (error) {
+                console.error("Metabase Load Failed:", error);
+            }
+        }
+        window.addEventListener('load', renderDashboard);
+    </script>
+</body>
+</html>

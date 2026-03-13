@@ -1,26 +1,166 @@
+/* --- Variables & Core --- */
+:root {
+    --primary: #0f172a;
+    --accent: #3b82f6;
+    --accent-glow: rgba(59, 130, 246, 0.5);
+    --bg-light: #f8fafc;
+    --white: #ffffff;
+    --text-dark: #1e293b;
+    --text-muted: #64748b;
+    --success: #10b981;
+}
+
+* { box-sizing: border-box; }
+
 body {
-    font-family: Arial, sans-serif;
-    margin: 20px;
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-light);
+    color: var(--text-dark);
 }
-h1, h2 {
-    color: #333;
+
+/* --- Navigation (Shared) --- */
+.navbar {
+    background: var(--primary);
+    color: white;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 5%;
+    height: 72px;
+    align-items: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
 }
-table {
-    border-collapse: collapse;
-    margin-top: 10px;
+
+.nav-logo { font-size: 1.4rem; font-weight: 800; }
+.nav-logo span { color: var(--accent); }
+
+.nav-links { list-style: none; display: flex; gap: 25px; align-items: center; }
+.nav-links a {
+    color: #94a3b8;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: 0.2s;
 }
-table, th, td {
-    border: 1px solid #999;
+.nav-links a:hover, .nav-links a.active { color: white; }
+.nav-links a.viz-link {
+    background: var(--accent);
+    color: white;
+    padding: 8px 18px;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px var(--accent-glow);
 }
-th, td {
-    padding: 6px 10px;
-    text-align: center;
+
+/* --- HOME PAGE ONLY STYLES --- */
+.home-page { overflow-y: auto; } 
+.content-area {
+    max-width: 1200px;
+    margin: 60px auto;
+    padding: 0 20px;
 }
-#fetchBtn {
-    padding: 8px 15px;
-    margin-bottom: 20px;
+
+.hero-container {
+    display: grid;
+    grid-template-columns: 1.2fr 0.8fr;
+    align-items: center;
+    gap: 40px;
+    padding: 60px 0;
+}
+
+.pill-badge {
+    background: #dbeafe;
+    color: var(--accent);
+    padding: 5px 15px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.hero-content h1 {
+    font-size: 4rem;
+    line-height: 1.1;
+    margin: 20px 0;
+    letter-spacing: -2px;
+}
+
+.text-gradient {
+    background: linear-gradient(90deg, #3b82f6, #2dd4bf);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.hero-content p {
+    font-size: 1.2rem;
+    color: var(--text-muted);
+    margin-bottom: 40px;
+    max-width: 500px;
+}
+
+/* --- Buttons --- */
+.main-btn {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 16px 32px;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 1rem;
     cursor: pointer;
+    transition: 0.3s;
+    box-shadow: 0 10px 20px var(--accent-glow);
 }
-.section {
-    margin-bottom: 30px;
+
+.main-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 15px 30px var(--accent-glow);
+}
+
+/* Kepp Dashboard full screenn */
+.dashboard-page {
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.dashboard-wrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 72px);
+}
+
+#dashboard-container {
+    flex: 1;
+    width: 100%;
+}
+
+metabase-dashboard {
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* --- Shared Components --- */
+.hidden { display: none !important; }
+
+.section-header { margin-bottom: 40px; }
+.section-header h2 { font-size: 2rem; margin: 0; }
+
+.table-container {
+    background: white;
+    border-radius: 20px;
+    padding: 20px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.05);
+}
+
+.prediction-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 20px;
 }

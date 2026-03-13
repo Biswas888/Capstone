@@ -2,29 +2,65 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Weather + Sales Demo</title>
-<link rel="stylesheet" href="style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SalesForecast Pro | Intelligence Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
 </head>
-<body>
+<body class="home-page">
 
-    <h1>Weather + Sales Demo</h1>
+    <nav class="navbar">
+        <div class="nav-logo">📊 SalesForecast<span>Pro</span></div>
+        <ul class="nav-links">
+            <li><a href="#" id="nav-home" class="active">Home</a></li>
+            <li><a href="#" id="nav-data">Historical Data</a></li>
+            <li><a href="#" id="nav-predict">7-Day Forecast</a></li>
+            <li><a href="#" class="nav-stock">Stock Suggestion →</a></li>
+            <li><a href="dashboard.html" class="viz-link">Visual Analytics →</a></li>
+        </ul>
+    </nav>
 
-    <button id="fetchBtn">Fetch Data</button>
+    <main class="content-area">
+        <section id="home-section" class="hero-container">
+            <div class="hero-content">
+                <span class="pill-badge">March 2026 Update</span>
+                <h1>Predictive Sales <br><span class="text-gradient">Intelligence</span></h1>
+                <p>Advanced forecasting that synchronizes your inventory with real-time weather patterns and historical demand.</p>
+                <div class="hero-actions">
+                    <button id="fetchBtn" class="main-btn">Update Dashboard Data</button>
+                    <p class="status-text">Backend Status: <span class="online-dot"></span> Online</p>
+                </div>
+            </div>
+            <div class="hero-visual">
+                <div class="glass-card">
+                    <div class="card-line"></div>
+                    <div class="card-line short"></div>
+                </div>
+            </div>
+        </section>
 
-    <div class="section">
-        <h2>Combined Sales + Weather</h2>
-        <div id="combinedData">
-            <p>Click "Fetch Data" to see sales and weather combined.</p>
-        </div>
-    </div>
+        <section id="data-section" class="hidden">
+            <div class="section-header">
+                <h2>Historical Data Log</h2>
+                <p>Reviewing combined records for Akron, OH region.</p>
+            </div>
+            <div class="table-container" id="combinedData">
+                <div class="empty-state">
+                    <p>Click "Update Dashboard Data" to sync database.</p>
+                </div>
+            </div>
+        </section>
 
-    <div class="section">
-        <h2>Simple Sales Prediction</h2>
-        <div id="prediction">
-            <p>Click "Fetch Data" to see predicted sales for the next day.</p>
-        </div>
-    </div>
+        <section id="predict-section" class="hidden">
+            <div class="section-header">
+                <h2>7-Day Sales Forecast</h2>
+                <p>AI modeling based on lag features and meteorological input.</p>
+            </div>
+            <div id="predictionResults" class="prediction-grid">
+                </div>
+        </section>
+    </main>
 
- <script src="script.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>

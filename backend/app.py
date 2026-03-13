@@ -1,7 +1,9 @@
-import pandas as pd # <-- Make sure this is imported
+import pandas as pd
 import mysql.connector
 from flask import Flask, jsonify, send_from_directory
 import requests
+import jwt
+import time
 from datetime import datetime
 import os
 from flask_cors import CORS
@@ -9,6 +11,10 @@ from flask_cors import CORS
 # --- Configuration ---
 API_KEY = os.getenv("API_KEY")
 CITY = "Akron"
+
+# --- Metabase Configuration ---
+SECRET_KEY = os.getenv("METABASE_SECRET_KEY")
+DASHBOARD_ID = int(os.getenv("METABASE_DASHBOARD_ID", 2))
 
 DB_CONFIG = {
     "host": os.getenv("MYSQL_HOST", "mysql-db"), 
@@ -24,10 +30,6 @@ CSV_PATH = "/app/raw/forecast_ready_dataset.csv"
 app = Flask(__name__)
 CORS(app)
 
-# --------------------------
-# 📂 Static File Serving (FIXED)
-# --------------------------
-
 @app.route("/")
 def root_index():
     return send_from_directory(FRONTEND_FOLDER, "index.html")
@@ -38,9 +40,7 @@ def root_index():
 def serve_static(filename):
     return send_from_directory(FRONTEND_FOLDER, filename)
 
-# --------------------------
 #  Data Sync Logic (New!)
-# --------------------------
 def sync_csv_to_db():
     """Reads the CSV and updates MySQL."""
     if os.path.exists(CSV_PATH):
@@ -49,7 +49,6 @@ def sync_csv_to_db():
             db = mysql.connector.connect(**DB_CONFIG)
             cursor = db.cursor()
             for _, row in df.iterrows():
-                # Adjust column names if your CSV is different
                 sql = """
                     INSERT INTO sales_features (date, total_quantity, total_revenue, city)
                     VALUES (%s, %s, %s, %s)
@@ -63,12 +62,9 @@ def sync_csv_to_db():
         except Exception as e:
             print(f"CSV Sync Error: {e}")
 
-# --------------------------
 # API Endpoints
-# --------------------------
 @app.route("/api/combined")
 def combined():
-    # Sync the CSV data every time the button is clicked
     sync_csv_to_db()
     
     try:
@@ -109,6 +105,21 @@ def prediction_input():
         return jsonify({"latest_sales_features": latest_sales, "current_weather": current_weather})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+#Dashboard Token Endpoint
+CORS(app, resources={r"/api/*": {"origins": "http://127.0.0.1:5500"}})
+@app.route('/api/get-metabase-token')
+def get_token():
+    payload = {
+        "resource": {"dashboard": DASHBOARD_ID},
+        "params": {},
+        "exp": round(time.time()) + (60 * 10)
+    }
+    
+    # Sign it using the key we got from .env
+    token = jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+    
+    return jsonify({"token": token})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5050, debug=True)
