@@ -1,0 +1,11 @@
+{
+  "cat_id": {
+    "BEVERAGES": 0,
+    "FOODS": 1,
+    "HOBBIES": 2,
+    "HOUSEHOLD": 3
+  },
+  "store_id": {
+    "WI_1": 0
+  }
+}

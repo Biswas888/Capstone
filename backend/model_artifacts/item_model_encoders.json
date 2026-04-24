@@ -1,0 +1,39 @@
+{
+  "item_id": {
+    "BATTERY_1": 0,
+    "BOARDGAME_1": 1,
+    "CLEANER_1": 2,
+    "COFFEE_1": 3,
+    "ICECREAM_1": 4,
+    "OUTDOORBALL_1": 5,
+    "PAPER_1": 6,
+    "PUZZLE_1": 7,
+    "SALAD_1": 8,
+    "SODA_1": 9,
+    "SOUP_1": 10,
+    "WATER_1": 11
+  },
+  "store_id": {
+    "WI_1": 0
+  },
+  "dept_id": {
+    "BEVERAGES_1": 0,
+    "BEVERAGES_2": 1,
+    "BEVERAGES_3": 2,
+    "FOODS_1": 3,
+    "FOODS_2": 4,
+    "FOODS_3": 5,
+    "HOBBIES_1": 6,
+    "HOBBIES_2": 7,
+    "HOBBIES_3": 8,
+    "HOUSEHOLD_1": 9,
+    "HOUSEHOLD_2": 10,
+    "HOUSEHOLD_3": 11
+  },
+  "cat_id": {
+    "BEVERAGES": 0,
+    "FOODS": 1,
+    "HOBBIES": 2,
+    "HOUSEHOLD": 3
+  }
+}

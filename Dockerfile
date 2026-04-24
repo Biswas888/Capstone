@@ -3,16 +3,16 @@ FROM python:3.11-slim
 # Set working directory
 WORKDIR /app
 
-# Copy backend folder (app.py + load_sales.py)
+# Copy backend folder
 COPY backend/ ./backend/
 
 COPY frontend/ ./frontend/
 
 # Copy requirements
-COPY requirements.txt .
+COPY backend/requirements.txt .
 
 # Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r backend/requirements.txt
 
 # Expose Flask port
 EXPOSE 5050

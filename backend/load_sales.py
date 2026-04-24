@@ -7,9 +7,8 @@ from dotenv import load_dotenv
 from datetime import date
 from datetime import datetime, timedelta
 
-load_dotenv()  # load .env
+load_dotenv()  
 
-# MySQL connection
 DB_CONFIG = {
     "host": os.getenv("MYSQL_HOST", "mysql-db"),
     "user": os.getenv("MYSQL_USER", "root"),
@@ -23,20 +22,17 @@ CITY = "Akron"
 LATITUDE = 41.0814
 LONGITUDE = -81.5190
 
-# Push sales into MySQL
 db = mysql.connector.connect(**DB_CONFIG)
 cursor = db.cursor()
 
 # Load historical sales
 sales_csv_path = "backend/forecast_ready_dataset.csv"
 if os.path.exists(sales_csv_path):
-    # 1. Load the CSV without strict parsing
+
     sales_df = pd.read_csv(sales_csv_path)
     
-    # 2. Flexible conversion: Handles '12/13/25' AND '2025-12-13' automatically
     sales_df['date'] = pd.to_datetime(sales_df['date'], errors='coerce')
     
-    # 3. Clean up any empty/bad date rows
     sales_df = sales_df.dropna(subset=['date'])
     
     print(f"Loaded and sanitized sales CSV: {sales_csv_path}")
@@ -48,7 +44,6 @@ else:
         "total_revenue": [0]*10
     })
 
-# List ONLY the columns that exist in your MySQL 'sales_features' table
 db_columns = [
     'total_quantity', 'total_revenue', 'Baby', 'Baking/ Spices/ Condiments',
     'Beverages', 'Cleaning', 'Dairy', 'Food', 'Fruits', 'Hygiene', 'Meat',
@@ -56,7 +51,6 @@ db_columns = [
     'day_of_week', 'month', 'is_weekend', 'lag_1', 'lag_3', 'lag_7', 'rolling_3', 'rolling_7'
 ]
 
-# This ensures Baby, Beverages, lag_1, etc., are all included automatically
 all_columns = [col for col in db_columns if col in sales_df.columns]
 columns_str = ", ".join(["`date`"] + [f"`{col}`" for col in all_columns] + ["`city`"])
 placeholders = ", ".join(["%s"] * (len(all_columns) + 2))
@@ -67,22 +61,17 @@ insert_query = f"""
     VALUES ({placeholders})
     ON DUPLICATE KEY UPDATE {update_str}
 """
-
-# Ensure you have today's date for comparison
 today = date.today()
 
 for _, row in sales_df.iterrows():
     raw_date = row['date']
     
-    # Convert to pandas datetime then to a date object for comparison
     clean_date_obj = pd.to_datetime(raw_date)
     clean_date_str = clean_date_obj.strftime('%Y-%m-%d')
     
-    # we skip it so your charts don't have a big flat line at zero.
     if clean_date_obj.date() < today and row.get('total_quantity', 0) == 0:
         continue
 
-    # Start with the date string
     values = [clean_date_str]
     
     for col in all_columns:
@@ -91,7 +80,7 @@ for _, row in sales_df.iterrows():
             values.append(0)
         else:
             values.append(val.item() if hasattr(val, 'item') else val)
-    
+
     values.append('Akron') 
 
     cursor.execute(insert_query, tuple(values))
@@ -133,7 +122,6 @@ def fetch_historical_weather(start_date, end_date, lat=LATITUDE, lon=LONGITUDE):
     })
     df['date'] = df['datetime'].dt.date
 
-    # Aggregate hourly 
     daily = df.groupby('date').agg({
         'temperature': 'mean',    
         'rainfall': 'sum',        
@@ -152,11 +140,9 @@ def fetch_historical_weather(start_date, end_date, lat=LATITUDE, lon=LONGITUDE):
 start_date = sales_df['date'].min().strftime('%Y-%m-%d')
 end_date_raw = sales_df['date'].max().strftime('%Y-%m-%d')
 
-# Clamp to Open-Meteo allowed range
 min_allowed = "1940-01-01"
 max_allowed = date.today().isoformat() 
 
-# Ensure dates are within allowed range
 start_date = max(str(start_date), min_allowed)  
 end_date = min(str(end_date_raw), max_allowed) 
 print(f"Fetching historical weather from {start_date} to {end_date}")
@@ -165,12 +151,10 @@ historical_weather['forecast_type'] = 'historical'
 historical_weather['date'] = pd.to_datetime(historical_weather['date'])
 
 if not historical_weather.empty:
-    # FILL MISSING VALUES
     historical_weather['avg_temp'] = historical_weather['avg_temp'].fillna(0)
     historical_weather['rainfall'] = historical_weather['rainfall'].fillna(0)
     historical_weather['wind_speed'] = historical_weather['wind_speed'].fillna(0)
     
-    # fill NaNs 
     if 'humidity' not in historical_weather.columns:
         historical_weather['humidity'] = 50
     else:
@@ -247,7 +231,7 @@ def fetch_forecast_weather(city, api_key):
 forecast_df = fetch_forecast_weather(CITY, API_KEY)
 
 if not forecast_df.empty:
-    #Create the features (the zeroed-out slots for the ML model)
+    #Create the features
     forecast_df_features = pd.DataFrame({
         "date": forecast_df["date"],
         "total_quantity": 0,
@@ -262,10 +246,9 @@ if not forecast_df.empty:
         "lag_1": 0, "lag_3": 0, "lag_7": 0, "rolling_3": 0, "rolling_7": 0
     })
     
-    # Combined DF for the final CSV export later
     df_forecast_combined = pd.merge(forecast_df_features, forecast_df, on="date", how="left")
 
-    # INSERT FORECAST WEATHER INTO MYSQL (weather_data table)
+    # INSERT FORECAST WEATHER INTO MYSQL
     print("Pushing forecast weather to MySQL...")
     for _, row in forecast_df.iterrows():
         cursor.execute("""
@@ -284,7 +267,7 @@ if not forecast_df.empty:
             row['wind_speed'], row['humidity'], 'forecast', row['description']
         ))
 
-    # INSERT FUTURE SLOTS INTO MYSQL (sales_features table)
+    # INSERT FUTURE SLOTS INTO MYSQL
     for _, row in forecast_df_features.iterrows():
         values = [row['date']]
         for col in all_columns:
@@ -303,14 +286,13 @@ else:
     df_forecast_combined = pd.DataFrame()
     print("No forecast data found to insert.")
 
-# Combine sales + historical + forecast into final CSV
+# Combine sales + historical
 sales_df['date'] = pd.to_datetime(sales_df['date']).dt.date
 historical_weather['date'] = pd.to_datetime(historical_weather['date']).dt.date
 
 if not df_forecast_combined.empty:
     df_forecast_combined['date'] = pd.to_datetime(df_forecast_combined['date']).dt.date
 
-# Start with sales dataframe
 sales_columns = [
     'date', 'total_quantity', 'total_revenue', 'Baby', 'Baking/ Spices/ Condiments',
     'Beverages', 'Cleaning', 'Dairy', 'Food', 'Fruits', 'Hygiene', 'Meat',
@@ -335,7 +317,6 @@ if not df_forecast_combined.empty:
     
     df = df.drop_duplicates(subset=['date'], keep='first')
 
-# Fill NaNs and Sort
 df.fillna({
     'total_quantity': 0, 'total_revenue': 0, 'Baby': 0, 'Baking/ Spices/ Condiments': 0,
     'Beverages': 0, 'Cleaning': 0, 'Dairy': 0, 'Food': 0, 'Fruits': 0, 'Hygiene': 0,
@@ -347,6 +328,5 @@ df.fillna({
 
 df = df.sort_values('date')
 
-# Save final forecast-ready dataset
 df.to_csv("backend/forecast_ready_dataset.csv", index=False)
 print("Forecast-ready dataset saved at 'backend/forecast_ready_dataset.csv' without timestamps.")

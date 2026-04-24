@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inventory Insights | SalesForecast</title>
+  <link rel="stylesheet" href="inventory.css" />
+  
+</head>
+
+<body class="inventory-page">
+
+  <nav class="navbar">
+    <div class="nav-logo">SalesForecast</div>
+    <ul class="nav-links">
+      <li><a href="index.html" class="viz-link">Home</a></li>
+      <li><a href="inventory.html" class="viz-link">Inventory Insights</a></li>
+      <li><a href="dashboard.html" class="viz-link">Visualization</a></li>
+    </ul>
+  </nav>
+
+  <main class="dashboard-wrapper">
+
+    <!-- INTRO BANNER -->
+    <section class="insight-banner">
+      <h2>Smart Inventory Forecasting</h2>
+      <p>
+        This page combines forecasted demand, weather conditions, and stock levels
+        to identify items that may need restocking before shortages occur.
+      </p>
+    </section>
+
+    <!-- INVENTORY INSIGHTS -->
+    <section class="dashboard-card">
+      <h2>Inventory Insights</h2>
+      <p class="section-subtext">
+        Stock-based recommendations generated from forecasted demand.
+      </p>
+
+      <div class="inventory-summary-cards" id="inventorySummaryCards"></div>
+
+      <div class="table-responsive">
+        <table class="data-table" id="inventoryTable">
+          <thead>
+            <tr>
+              <th>Item ID</th>
+              <th>Category</th>
+              <th>Estimated Stock</th>
+              <th>Historical Avg Daily Sales</th>
+              <th>Predicted Avg Daily Demand</th>
+              <th>Days Until Stockout</th>
+              <th>Recommended Reorder</th>
+              <th>Urgency</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td colspan="8">Inventory insights will appear here.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- PREDICTION PREVIEW -->
+    <section class="dashboard-card prediction-preview-section">
+      <h3>Prediction Preview</h3>
+      <p class="section-subtext">
+        Daily forecasted sales generated from weather and historical demand.
+      </p>
+
+      <div class="table-responsive">
+        <div id="predictionTable"></div>
+      </div>
+      
+    </section>
+
+  </main>
+
+  <script src="script.js"></script>
+  <script src="metrics.js"></script>
+
+</body>
+</html>

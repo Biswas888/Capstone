@@ -1,0 +1,39 @@
+{
+  "item_id": {
+    "BOARDGAME_1": 0,
+    "CANDLES_1": 1,
+    "CHIPS_1": 2,
+    "COFFEE_1": 3,
+    "DETERGENT_1": 4,
+    "ICECREAM_1": 5,
+    "PAPER_1": 6,
+    "SALAD_1": 7,
+    "SODA_1": 8,
+    "SOUP_1": 9,
+    "TEA_1": 10,
+    "WATER_1": 11
+  },
+  "store_id": {
+    "WI_1": 0
+  },
+  "dept_id": {
+    "BEVERAGES_1": 0,
+    "BEVERAGES_2": 1,
+    "BEVERAGES_3": 2,
+    "BEVERAGES_4": 3,
+    "FOODS_1": 4,
+    "FOODS_2": 5,
+    "FOODS_3": 6,
+    "FOODS_4": 7,
+    "HOBBIES_1": 8,
+    "HOBBIES_2": 9,
+    "HOUSEHOLD_1": 10,
+    "HOUSEHOLD_2": 11
+  },
+  "cat_id": {
+    "BEVERAGES": 0,
+    "FOODS": 1,
+    "HOBBIES": 2,
+    "HOUSEHOLD": 3
+  }
+}

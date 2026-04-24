@@ -4,7 +4,6 @@ services:
     container_name: weather_db
     restart: always
     environment:
-
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
       MYSQL_DATABASE: ${DB_NAME}
     ports:
@@ -33,19 +32,21 @@ services:
       - "5050:5050"
     depends_on:
       - mysql-db
-
     env_file:
       - .env
     environment:
-
       MYSQL_HOST: mysql-db
+      MYSQL_PORT: 3306
       MYSQL_USER: root
       MYSQL_PASSWORD: ${DB_ROOT_PASSWORD}
-      MYSQL_DB: ${DB_NAME}
+      MYSQL_DATABASE: ${DB_NAME}
+      TABLE_NAME: sales_features
+      STATE_FILTER: WI
+      SPLIT_DATE: "2025-10-01"
     volumes:
-      - ./backend:/app/backend
-      - ./raw:/app/raw 
-      - ./frontend:/app/frontend
+      - ./backend:/app
+    working_dir: /app
+    command: python app.py
 
 volumes:
   mysql-data:

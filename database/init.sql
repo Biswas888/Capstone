@@ -1,70 +1,57 @@
-CREATE DATABASE IF NOT EXISTS weather_sales;
-USE weather_sales;
-
-DROP TABLE IF EXISTS sales;
 DROP TABLE IF EXISTS sales_features;
-DROP TABLE IF EXISTS weather_data;
 
 CREATE TABLE sales_features (
-    date DATE PRIMARY KEY,
-
-    -- Core Targets we
-    total_quantity INT NOT NULL,
-    total_revenue FLOAT NOT NULL,
-
-    -- Category Features
-    Baby INT DEFAULT 0,
-    `Baking/ Spices/ Condiments` INT DEFAULT 0,
-    Beverages INT DEFAULT 0,
-    Cleaning INT DEFAULT 0,
-    Dairy INT DEFAULT 0,
-    Food INT DEFAULT 0,
-    Fruits INT DEFAULT 0,
-    Hygiene INT DEFAULT 0,
-    Meat INT DEFAULT 0,
-    Miscellaneous INT DEFAULT 0,
-    Pet INT DEFAULT 0,
-    `School Supplies` INT DEFAULT 0,
-    Snacks INT DEFAULT 0,
-    Vegetables INT DEFAULT 0,
-    city VARCHAR(50) DEFAULT 'Akron',
-
-    -- Calendar Features
-    day_of_week INT,
+    item_id VARCHAR(50),
+    dept_id VARCHAR(50),
+    cat_id VARCHAR(50),
+    store_id VARCHAR(50),
+    state_id VARCHAR(10),
+    date DATE,
+    sales FLOAT,
+    sell_price FLOAT,
+    weekday VARCHAR(20),
     month INT,
-    is_weekend TINYINT(1),
-
-    -- Lag Features
+    year INT,
+    snap INT,
+    is_weekend INT,
+    temperature_2m_max FLOAT,
+    temperature_2m_min FLOAT,
+    temperature_2m_mean FLOAT,
+    apparent_temperature_max FLOAT,
+    apparent_temperature_min FLOAT,
+    precipitation_sum FLOAT,
+    rain_sum FLOAT,
+    snowfall_sum FLOAT,
+    wind_speed_10m_max FLOAT,
+    weather_code INT,
+    is_rainy INT,
+    is_snowy INT,
+    is_hot INT,
+    is_cold INT,
+    day_of_month INT,
+    day_of_year INT,
+    week_of_year INT,
+    quarter INT,
+    daily_total_sales FLOAT,
+    cat_daily_sales FLOAT,
+    dept_daily_sales FLOAT,
+    item_daily_share FLOAT,
     lag_1 FLOAT,
-    lag_3 FLOAT,
     lag_7 FLOAT,
-
-    -- Rolling Features
-    rolling_3 FLOAT,
-    rolling_7 FLOAT,
-
-    -- Timestamp
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    rolling_mean_7 FLOAT,
+    rolling_std_7 FLOAT,
+    sales_diff_1 FLOAT,
+    sales_diff_7 FLOAT,
+    price_change_1 FLOAT,
+    price_change_7 FLOAT,
+    sales_pct_change_1 FLOAT,
+    price_pct_change_1 FLOAT,
+    is_zero_sales INT,
+    lag_zero_1 INT,
+    has_event_1 INT,
+    has_event_2 INT,
+    has_any_event INT,
+    expected_daily_demand FLOAT,
+    safety_stock FLOAT,
+    reorder_point_7d FLOAT
 );
-
-CREATE TABLE weather_data (
-    date DATE PRIMARY KEY,
-
-    avg_temp FLOAT NOT NULL,
-    min_temp FLOAT,
-    max_temp FLOAT,
-
-    humidity INT NOT NULL,
-    rainfall FLOAT NOT NULL DEFAULT 0 CHECK (rainfall >= 0),
-    wind_speed FLOAT NOT NULL,
-
-    description VARCHAR(100),
-
-    forecast_type ENUM('historical', 'forecast') DEFAULT 'historical',
-
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Add indexes
-CREATE INDEX idx_sales_date ON sales_features(date);
-CREATE INDEX idx_weather_date ON weather_data(date);

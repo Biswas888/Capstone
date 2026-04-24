@@ -3,23 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Visual Analytics | SalesForecast Pro</title>
+    <title>Visual Analytics | SalesForecast</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="dashboard.css">
     <script defer src="http://localhost:3000/app/embed.js"></script>
 </head>
 <body class="dashboard-page">
 
     <nav class="navbar">
-        <div class="nav-logo">SalesForecast Pro</div>
+        <div class="nav-logo">SalesForecast</div>
         <ul class="nav-links">
-            <li><a href="index.html">Home</a></li>
-            <li><a href="dashboard.html" class="active">Visual Analytics</a></li>
+            <li><a href="index.html" class="viz-link">Home</a></li>
+            <li><a href="dashboard.html" class="viz-link">Visual Analytics</a></li>
+            <li><a href="inventory.html" class="viz-link">Inventory Insights</a></li>
         </ul>
     </nav>
 
     <main class="dashboard-wrapper">
-        <div id="dashboard-container">
-            </div>
+        <div id="dashboard-container"></div>
     </main>
 
     <script>
@@ -28,32 +29,31 @@
         }
 
         defineMetabaseConfig({
-            "theme": { "preset": "light" },
-            "isGuest": true,
-            "instanceUrl": "http://localhost:3000"
+            theme: { preset: "dark" },
+            isGuest: true,
+            instanceUrl: "http://localhost:3000"
         });
 
         async function renderDashboard() {
             try {
-                const response = await fetch('http://localhost:5050/api/get-metabase-token');
+                const response = await fetch("http://localhost:5050/api/get-metabase-token");
                 const data = await response.json();
 
-                const dashboard = document.createElement('metabase-dashboard');
-                dashboard.setAttribute('token', data.token);
-                
-                // CRITICAL: Disable internal title to save vertical space
-                dashboard.setAttribute('with-title', 'false'); 
-                dashboard.setAttribute('with-downloads', 'true');
+                const dashboard = document.createElement("metabase-dashboard");
+                dashboard.setAttribute("token", data.token);
+                dashboard.setAttribute("with-title", "false");
+                dashboard.setAttribute("with-downloads", "true");
 
-                const container = document.getElementById('dashboard-container');
-                container.innerHTML = ''; 
+                const container = document.getElementById("dashboard-container");
+                container.innerHTML = "";
                 container.appendChild(dashboard);
 
             } catch (error) {
                 console.error("Metabase Load Failed:", error);
             }
         }
-        window.addEventListener('load', renderDashboard);
+
+        window.addEventListener("load", renderDashboard);
     </script>
 </body>
 </html>
