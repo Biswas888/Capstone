@@ -7,12 +7,9 @@ import pandas as pd
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from xgboost import XGBRegressor
 
-
-# =========================
 # CONFIG
-# =========================
 DATA_PATH = os.getenv("DATA_PATH", "strong_weather_retail_training_dataset.csv")
-STATE_FILTER = os.getenv("STATE_FILTER", "")   # optional: WI / CA / TX
+STATE_FILTER = os.getenv("STATE_FILTER", "") 
 SPLIT_DATE = os.getenv("SPLIT_DATE", "2025-10-01")
 OUTPUT_DIR = "model_artifacts"
 

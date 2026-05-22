@@ -101,8 +101,13 @@ def build_uploaded_history_map(input_df):
 
     for _, row in input_df.iterrows():
         category = row.get("category")
+
+        if pd.isna(category) or str(category).strip() in ["", "nan", "None"]:
+            category = row.get("cat_id")
+
         item_id = row.get("item_id")
-        store_id = row.get("store_id")
+
+        store_id = row.get("store_id") if "store_id" in input_df.columns else None
 
         history_key = get_history_key(category, item_id, store_id)
 
@@ -192,13 +197,10 @@ def load_forecast_for_city(city):
 
 # history key
 def get_history_key(category, item_id, store_id):
-    if (
-        pd.notna(item_id) and str(item_id).strip() != "" and
-        pd.notna(store_id) and str(store_id).strip() != ""
-    ):
-        return f"item_store::{item_id}::{store_id}"
+    if pd.notna(item_id) and str(item_id).strip() not in ["", "nan", "None"]:
+        return f"item::{item_id}"
 
-    if pd.notna(category) and str(category).strip() != "":
+    if pd.notna(category) and str(category).strip() not in ["", "nan", "None"]:
         return f"category::{category}"
 
     return "default"
@@ -501,9 +503,8 @@ def build_prediction_results(input_df, city, forecast_df):
                 item_encoders=item_encoders,
                 category_encoders=category_encoders
             )
-            # -----------------------------
+
             # Base prediction
-            # -----------------------------
             if level == "item":
                 feature_df, sell_price = build_item_feature_row(
                     forecast_date=forecast_date,
@@ -524,9 +525,7 @@ def build_prediction_results(input_df, city, forecast_df):
 
             pred = max(pred, 0.0)
 
-            # -----------------------------
             # Controlled weather adjustment
-            # -----------------------------
             temp = float(weather_row.get("temperature_2m_mean", 0) or 0)
             rain = float(weather_row.get("rain_sum", 0) or 0)
             snowfall = float(weather_row.get("snowfall_sum", 0) or 0)
@@ -536,9 +535,7 @@ def build_prediction_results(input_df, city, forecast_df):
 
             weather_factor = 1.0
 
-            # -----------------------------
             # Frozen / hot-weather foods
-            # -----------------------------
             if "ICECREAM" in item_id_str:
                 if temp >= 28:
                     weather_factor += 0.15
@@ -549,11 +546,8 @@ def build_prediction_results(input_df, city, forecast_df):
                 elif temp <= 8:
                     weather_factor -= 0.10
 
-            # -----------------------------
             # Beverages
-            # -----------------------------
             if category_str == "BEVERAGES":
-                # Coffee = hot drink, should fall in hot weather
                 if "COFFEE" in item_id_str:
                     if temp >= 30:
                         weather_factor -= 0.28
@@ -592,9 +586,7 @@ def build_prediction_results(input_df, city, forecast_df):
                     elif temp <= 5:
                         weather_factor -= 0.03
 
-            # -----------------------------
             # Warm foods / comfort foods
-            # -----------------------------
             if "SOUP" in item_id_str:
                 if temp <= 5:
                     weather_factor += 0.12
@@ -630,9 +622,7 @@ def build_prediction_results(input_df, city, forecast_df):
                 if snowfall >= 2:
                     weather_factor += 0.03
 
-            # -----------------------------
             # Indoor / outdoor hobbies
-            # -----------------------------
             if "BOARDGAME" in item_id_str or "PUZZLE" in item_id_str:
                 if rain >= 5:
                     weather_factor += 0.06
@@ -653,17 +643,13 @@ def build_prediction_results(input_df, city, forecast_df):
                 elif temp <= 5:
                     weather_factor -= 0.06
 
-            # -----------------------------
             # General snow drag for most items
-            # -----------------------------
             if snowfall >= 3 and "ICECREAM" not in item_id_str and "BOARDGAME" not in item_id_str and "PUZZLE" not in item_id_str:
                 weather_factor -= 0.03
 
             pred = max(pred * weather_factor, 0.0)
 
-            # -----------------------------
             # Stabilization
-            # -----------------------------
             recent_window = sales_history[-7:] if len(sales_history) >= 7 else sales_history
             recent_mean = float(np.mean(recent_window)) if recent_window else 0.0
             recent_std = float(np.std(recent_window)) if recent_window else 0.0
@@ -674,9 +660,7 @@ def build_prediction_results(input_df, city, forecast_df):
             pred = min(pred, upper_bound)
             pred = max(pred, lower_bound)
 
-            # -----------------------------
             # Recursive update
-            # -----------------------------
             if sales_history:
                 blended = 0.7 * pred + 0.3 * sales_history[-1]
             else:

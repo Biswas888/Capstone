@@ -10,17 +10,17 @@ DB_CONFIG = {
 }
 
 def save_predictions_to_db(df):
-    print("🔥 save_predictions_to_db called")
+    print(" save_predictions_to_db called")
 
     if df is None:
-        print("❌ df is None")
+        print(" df is None")
         return
 
     if df.empty:
-        print("❌ df is empty")
+        print(" df is empty")
         return
 
-    print("✅ rows to insert:", len(df))
+    print(" rows to insert:", len(df))
     print(df.head())
 
     db = mysql.connector.connect(**DB_CONFIG)
@@ -75,13 +75,13 @@ def save_predictions_to_db(df):
         )
         rows.append(row_tuple)
 
-    print("🧾 prepared insert rows:", len(rows))
+    print(" prepared insert rows:", len(rows))
     if rows:
-        print("🧪 first row:", rows[0])
+        print(" first row:", rows[0])
 
     cursor.executemany(insert_sql, rows)
     db.commit()
-    print("✅ insert committed")
+    print(" insert committed")
 
     cursor.close()
     db.close()

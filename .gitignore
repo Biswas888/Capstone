@@ -1,2 +1,3 @@
 .env
-metabase-data/
+metabase-data/backend/sales_features.csv
+backend/sales_features.csv

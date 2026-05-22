@@ -10,4 +10,5 @@ CREATE TABLE prediction_results (
     rain FLOAT,
     snowfall FLOAT,
     suggestion VARCHAR(255)
+    prediction_level VARCHAR(20)
 );

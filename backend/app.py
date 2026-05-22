@@ -21,9 +21,7 @@ from helpers import (
     build_uploaded_history_map
 )
 
-# =========================
 # ITEM MODEL
-# =========================
 ITEM_MODEL_PATH = "model_artifacts/xgb_sales_model.pkl"
 ITEM_FEATURES_PATH = "model_artifacts/feature_columns.pkl"
 ITEM_ENCODERS_PATH = "model_artifacts/item_model_encoders.json"
@@ -34,10 +32,7 @@ item_feature_cols = joblib.load(ITEM_FEATURES_PATH)
 with open(ITEM_ENCODERS_PATH, "r") as f:
     item_encoders = json.load(f)
 
-
-# =========================
 # CATEGORY MODEL
-# =========================
 CATEGORY_MODEL_PATH = "model_artifacts/xgb_category_model.pkl"
 CATEGORY_FEATURES_PATH = "model_artifacts/category_feature_columns.pkl"
 CATEGORY_ENCODERS_PATH = "model_artifacts/category_model_encoders.json"
